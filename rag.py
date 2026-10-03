@@ -20,6 +20,14 @@ from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
+from langchain.chat_models import init_chat_model
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import (
+    RunnableParallel,
+    RunnablePassthrough,
+)
+
 
 # ============================================================
 # 1. CHARGEMENT DU CORPUS
@@ -144,13 +152,114 @@ def build_retriever(vectorstore: Chroma, k: int = 4):
     return retriever
 
 
+
+# ============================================================
+# 4. LA CHAÎNE RAG
+# ============================================================
+
+# Vérifie que la clé Anthropic est présente
+if not os.getenv("ANTHROPIC_API_KEY"):
+    raise ValueError(
+        "ANTHROPIC_API_KEY manquante. "
+        "Vérifie ton fichier .env à la racine du projet."
+    )
+
+# Crée le modèle Claude
+model = init_chat_model(
+    "claude-haiku-4-5",
+    model_provider="anthropic",
+    temperature=0,
+    max_retries=8,
+)
+
+# Le prompt strict (anti-hallucination)
+RAG_PROMPT = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "Tu es l'assistant de support de Randoneo, un e-commerce de matériel outdoor. "
+        "Réponds en français, avec un ton chaleureux et professionnel.\n\n"
+        "RÈGLES STRICTES :\n"
+        "1. Appuie-toi UNIQUEMENT sur le contexte fourni ci-dessous.\n"
+        "2. N'invente JAMAIS une information absente du contexte.\n"
+        "3. Si le contexte ne contient pas la réponse, dis clairement "
+        "que tu ne disposes pas de cette information.\n"
+        "4. Sois concis : 3 à 5 phrases maximum.\n"
+        "5. Termine par une prochaine étape utile si pertinent.",
+    ),
+    (
+        "human",
+        "Contexte :\n{context}\n\nQuestion : {question}",
+    ),
+])
+
+
+def format_docs(docs) -> str:
+    """
+    Formate une liste de Document en texte lisible.
+    
+    Args:
+        docs: Liste de Document
+    
+    Returns:
+        Le texte formaté avec les sources
+    """
+    return "\n\n".join(
+        f"[{doc.metadata['source']}]\n{doc.page_content}"
+        for doc in docs
+    )
+
+
+def build_rag_chain(retriever):
+    """
+    Assemble la chaîne RAG complète.
+    
+    La chaîne :
+    1. Récupère les passages (retriever)
+    2. Formate le contexte (format_docs)
+    3. Génère la réponse (prompt + model)
+    
+    Args:
+        retriever: Le retriever LangChain
+    
+    Returns:
+        La chaîne LCEL
+    """
+    # Sous-chaîne de génération
+    generate = (
+        RunnablePassthrough.assign(
+            context=lambda x: format_docs(x["context"])
+        )
+        | RAG_PROMPT
+        | model
+        | StrOutputParser()
+    )
+    
+    # Chaîne complète : récupère + génère
+    rag_chain = (
+        RunnableParallel({
+            "context": retriever,
+            "question": RunnablePassthrough(),
+        })
+        .assign(answer=generate)
+    )
+    
+    return rag_chain
+
+
+
+
+
+
+
+
+
     
 # ============================================================
 # TEST MANUEL
 # ============================================================
 
 if __name__ == "__main__":
-    print("=== Test du chargement, du chunking et de l'indexation ===\n")
+    print("=== Test de la chaîne RAG complète ===\n")
     
     # 1. Charger le corpus
     documents = load_corpus()
@@ -168,13 +277,27 @@ if __name__ == "__main__":
     # 4. Créer le retriever
     retriever = build_retriever(vectorstore, k=4)
     
-    # 5. Tester une recherche
-    print("\n🔍 Test de recherche...")
-    question = "Combien pèse la tente Aero 2 places ?"
-    print(f"Question : {question}\n")
+    # 5. Créer la chaîne RAG
+    print("\n🔗 Assemblage de la chaîne RAG...")
+    rag_chain = build_rag_chain(retriever)
+    print("✅ Chaîne RAG prête\n")
     
-    results = retriever.invoke(question)
-    for i, doc in enumerate(results, 1):
-        print(f"  [{i}] {doc.metadata['source']}")
-        print(f"      {doc.page_content[:80]}...")
-        print()
+    # 6. Tester avec des questions
+    questions = [
+        "Combien pèse la tente Aero 2 places ?",
+        "Sous combien de jours suis-je remboursé après un retour ?",
+        "Proposez-vous une carte de fidélité ?",
+    ]
+    
+    for question in questions:
+        print("=" * 60)
+        print(f"❓ {question}")
+        print("=" * 60)
+        
+        result = rag_chain.invoke(question)
+        
+        print(f"\n💬 Réponse :\n{result['answer']}\n")
+        
+        # Afficher les sources uniques
+        sources = sorted({doc.metadata["source"] for doc in result["context"]})
+        print(f"📎 Sources : {', '.join(sources)}\n")
