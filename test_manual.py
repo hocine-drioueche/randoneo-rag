@@ -1,39 +1,9 @@
 # ============================================================
-# TEST MANUEL fichier rag.py
-# ============================================================
-
-if __name__ == "__main__":
-    print("=== Test du chargement et du chunking ===\n")
-    
-    # 1. Charger le corpus
-    documents = load_corpus()
-    print(f"📚 {len(documents)} documents chargés")
-    
-    # 2. Afficher les sources
-    print("\nSources :")
-    for doc in documents[:5]:
-        print(f"  - {doc.metadata['source']}")
-    print(f"  ... et {len(documents) - 5} autres")
-    
-    # 3. Découper en chunks
-    chunks = split_documents(documents)
-    print(f"\n✂️  {len(chunks)} chunks créés")
-    
-    # 4. Afficher un exemple de chunk
-    print("\nExemple de chunk :")
-    print("─" * 60)
-    print(chunks[0].page_content[:300])
-    print("─" * 60)
-    print(f"Source : {chunks[0].metadata['source']}")
-
-
-
-# ============================================================
 # TEST MANUEL
 # ============================================================
 
 if __name__ == "__main__":
-    print("=== Test du chargement, du chunking et de l'indexation ===\n")
+    print("=== Test de la chaîne RAG complète ===\n")
     
     # 1. Charger le corpus
     documents = load_corpus()
@@ -51,13 +21,27 @@ if __name__ == "__main__":
     # 4. Créer le retriever
     retriever = build_retriever(vectorstore, k=4)
     
-    # 5. Tester une recherche
-    print("\n🔍 Test de recherche...")
-    question = "Combien pèse la tente Aero 2 places ?"
-    print(f"Question : {question}\n")
+    # 5. Créer la chaîne RAG
+    print("\n🔗 Assemblage de la chaîne RAG...")
+    rag_chain = build_rag_chain(retriever)
+    print("✅ Chaîne RAG prête\n")
     
-    results = retriever.invoke(question)
-    for i, doc in enumerate(results, 1):
-        print(f"  [{i}] {doc.metadata['source']}")
-        print(f"      {doc.page_content[:80]}...")
-        print()
+    # 6. Tester avec des questions
+    questions = [
+        "Combien pèse la tente Aero 2 places ?",
+        "Sous combien de jours suis-je remboursé après un retour ?",
+        "Proposez-vous une carte de fidélité ?",
+    ]
+    
+    for question in questions:
+        print("=" * 60)
+        print(f"❓ {question}")
+        print("=" * 60)
+        
+        result = rag_chain.invoke(question)
+        
+        print(f"\n💬 Réponse :\n{result['answer']}\n")
+        
+        # Afficher les sources uniques
+        sources = sorted({doc.metadata["source"] for doc in result["context"]})
+        print(f"📎 Sources : {', '.join(sources)}\n")
