@@ -39,19 +39,28 @@ randoneo-rag/
 │   ├── guides/             # Guides pratiques
 │   ├── politiques/         # Politiques (retour, garantie...)
 │   └── faq/                # FAQ
-└── eval/                   # Jeux de questions
-    ├── rag_questions.jsonl
-    └── rag_questions_thematiques.jsonl
+├── eval/                   # Jeux de questions
+│   ├── rag_questions.jsonl
+│   └── rag_questions_thematiques.jsonl
+└── docs/                   # Documentation visuelle
+    ├── pipeline_projet_RAG.png
+    └── diagram_projet_RAG.png
 ```
+
+
 
 ## Architecture visuelle
 
 ### Pipeline RAG (vue simplifiée)
 ![Pipeline RAG](docs/pipeline_projet_RAG.png)
 
+*Le pipeline en 2 phases : indexation (hors ligne) et requête (en ligne).*
+
 ### Diagramme détaillé
 ![Diagramme détaillé](docs/diagram_projet_RAG.png)
 
+
+*Vue complète : composants, fichiers et flux d'exécution.*
 
 ## Installation
 
