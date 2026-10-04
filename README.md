@@ -44,6 +44,15 @@ randoneo-rag/
     └── rag_questions_thematiques.jsonl
 ```
 
+## Architecture visuelle
+
+### Pipeline RAG (vue simplifiée)
+![Pipeline RAG](docs/pipeline_projet_RAG.png)
+
+### Diagramme détaillé
+![Diagramme détaillé](docs/diagram_projet_RAG.png)
+
+
 ## Installation
 
 ### 1. Cloner le projet
